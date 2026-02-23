@@ -3,11 +3,19 @@ resolver = "3"
 members = [
     "nkcore",
     "nkcore-base",
+    "nkcore-debug",
+    "nkcore-debug-macros",
     "nkcore-windows",
 ]
 
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
 [workspace.dependencies]
 nkcore-base = { path = "nkcore-base" }
+nkcore-debug = { path = "nkcore-debug" }
+nkcore-debug-macros = { path = "nkcore-debug-macros" }
 nkcore-windows = { path = "nkcore-windows" }
 
 [workspace.lints.clippy]

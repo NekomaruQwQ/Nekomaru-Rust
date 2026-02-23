@@ -13,7 +13,7 @@ pub trait RawWindowHandleExt {
 
 impl RawWindowHandleExt for RawWindowHandle {
     fn as_hwnd(&self) -> HWND {
-        if let RawWindowHandle::Win32(handle) = self {
+        if let &Self::Win32(handle) = self {
             HWND(handle.hwnd.get() as _)
         } else {
             panic!("The provided window handle is not a Win32 window handle.");

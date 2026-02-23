@@ -1,14 +1,19 @@
 [package]
 name = "nkcore"
-version = "0.1.0"
-edition = "2024"
+version = { workspace = true }
+edition = { workspace = true }
+
+[lints]
+workspace = true
 
 [features]
 default = []
+debug = ["nkcore-debug"]
 winit = ["nkcore-windows/winit"]
 
 [dependencies]
 nkcore-base = { workspace = true }
+nkcore-debug = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
 nkcore-windows = { workspace = true }

@@ -1,0 +1,14 @@
+[package]
+name = "nkcore-debug"
+version.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+nkcore-debug-macros = { workspace = true }
+
+anyhow = "1.0"
+pretty-name = "0.4.5"
+
