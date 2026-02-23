@@ -1,0 +1,14 @@
+[package]
+name = "nkcore"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+winit = ["nkcore-windows/winit"]
+
+[dependencies]
+nkcore-base = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+nkcore-windows = { workspace = true }

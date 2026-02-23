@@ -1,0 +1,19 @@
+[package]
+name = "nkcore-windows"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+winit = ["dep:winit"]
+
+[dependencies]
+pretty_env_logger = "0.5.0"
+raw-window-handle = "0.6.2"
+windows = { version = "0.62.2", features = ["Win32_Foundation"] }
+
+[dependencies.winit]
+version = "0.30.12"
+default-features = false
+features = ["rwh_06"]
+optional = true

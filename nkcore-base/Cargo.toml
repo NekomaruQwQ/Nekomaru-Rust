@@ -1,0 +1,12 @@
+[package]
+name = "nkcore-base"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0"
+euclid = "0.22.13"
+log = "0.4.29"
