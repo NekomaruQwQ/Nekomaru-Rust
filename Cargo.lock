@@ -1613,6 +1613,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "winrt-capture"
+version = "0.1.0"
+dependencies = [
+ "nkcore",
+ "windows",
+]
+
+[[package]]
 name = "wit-bindgen"
 version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
