@@ -14,6 +14,7 @@ use windows::{
     Graphics::DirectX::Direct3D11::*,
     UI::*,
     Win32::Foundation::*,
+    Win32::Graphics::Dxgi::Common::*,
     Win32::Graphics::Dxgi::*,
     Win32::Graphics::Direct3D11::*,
     Win32::System::WinRT::Direct3D11::*,
@@ -26,10 +27,25 @@ use windows::{
 /// and [`GraphicsCaptureSession::Close`] calls.
 /// The capture is automatically stopped when the [`CaptureSession`] is dropped.
 pub struct CaptureSession {
+    d3d11_device: ID3D11Device,
     winrt_device: IDirect3DDevice,
     frame_pool: Direct3D11CaptureFramePool,
     frame_pool_size: Size2D<u32>,
     session: GraphicsCaptureSession,
+
+    /// A staging texture used to copy the captured frame so that it can be used
+    /// as a shader resource.
+    ///
+    /// The captured frame cannot be used directly because it is gamma encoded
+    /// but cannot be viewed as sRGB due to some limitations of the Windows
+    /// graphics capture API.
+    ///
+    /// The staging texture is created with the same size as the frame pool and
+    /// is recreated when the frame pool is resized.
+    ///
+    /// [`CaptureSession::get_next_frame`] copies the captured frame to the staging
+    /// texture and returns the staging texture instead of the captured frame.
+    staging_texture: ID3D11Texture2D,
 }
 
 impl Drop for CaptureSession {
@@ -47,7 +63,8 @@ impl CaptureSession {
     /// starts the capture immediately.
     pub fn new(device: &ID3D11Device, capture_item: &GraphicsCaptureItem)
      -> anyhow::Result<Self> {
-        let winrt_device = Self::get_winrt_device(device)?;
+        let winrt_device =
+            Self::get_winrt_device(device)?;
         let frame_pool =
             api_call! {
                 Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -56,15 +73,22 @@ impl CaptureSession {
                     2,
                     SizeInt32 { Width: 1, Height: 1 })
             }.context("failed to create frame pool")?;
+        let staging_texture =
+            Self::create_texture(
+                device,
+                DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+                Size2D::new(1, 1))?;
         let session =
             api_call!(frame_pool.CreateCaptureSession(capture_item))
                 .context("failed to create capture session from the given GraphicsCaptureItem")?;
         api_call!(session.StartCapture())
             .context("failed to start the capture session")?;
         Ok(Self {
+            d3d11_device: device.clone(),
             winrt_device,
             frame_pool,
             frame_pool_size: Size2D::new(1, 1),
+            staging_texture,
             session,
         })
     }
@@ -82,8 +106,13 @@ impl CaptureSession {
 
     /// Acquires the next captured frame as a [`ID3D11Texture2D`]. Returns `None`
     /// if there is no new frame available since the last call.
-    pub fn get_next_frame(&mut self)
-     -> anyhow::Result<Option<ID3D11Texture2D>> {
+    ///
+    /// The returned texture is a staging texture that contains the copied frame
+    /// data. The staging texture is used to work around the limitations of the
+    /// Windows graphics capture API that prevents the captured frame from being
+    /// used as a shader resource directly.
+    pub fn get_next_frame(&mut self, ctx: &ID3D11DeviceContext)
+     -> anyhow::Result<Option<&ID3D11Texture2D>> {
         // Here we obtain all the frames in the pool while keeping only the
         // last one. Previous frames are discarded as they are outdated and
         // will never be rendered.
@@ -101,11 +130,18 @@ impl CaptureSession {
                     new_size.Width as _,
                     new_size.Height as _);
             if new_size == self.frame_pool_size {
-                // The frame size has not changed.
-                Ok(Some(Self::get_texture_from_capture_frame(&new_frame)?))
+                // The frame size has not changed. We can just copy the new frame to
+                // the staging texture and return it.
+                let new_texture = Self::get_texture_from_capture_frame(&new_frame)?;
+                unsafe {
+                    ctx.CopyResource(
+                        &self.staging_texture,
+                        &new_texture);
+                }
+                Ok(Some(&self.staging_texture))
             } else {
                 // The frame size has changed and the frame pool must be recreated.
-                self.resize_frame_pool(new_size)?;
+                self.resize_frame_pool_and_staging_buffer(new_size)?;
 
                 // The new frame is not likely valid as the frame was not captured
                 // with the correct size.
@@ -118,7 +154,8 @@ impl CaptureSession {
         }
     }
 
-    fn resize_frame_pool(&mut self, new_size: Size2D<u32>) -> anyhow::Result<()> {
+    fn resize_frame_pool_and_staging_buffer(&mut self, new_size: Size2D<u32>)
+     -> anyhow::Result<()> {
         try {
             // The frame size has changed and the frame pool must be recreated.
             api_call! {
@@ -132,12 +169,53 @@ impl CaptureSession {
                     })
             }?;
 
+            // The staging texture must be resized accordingly to match the
+            // new size of the frame pool.
+            //
+            // Note that if an error occurs here, `self.frame_pool_size` is
+            // not updated and the next call to `get_next_frame` will try to
+            // recreate the frame pool again. This is not ideal but it makes
+            // the error handling simpler and more robust.
+            self.staging_texture =
+                Self::create_texture(
+                    &self.d3d11_device,
+                    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+                    new_size)?;
+
             // The `frame_pool_size` must be updated after the frame pool is
             // successfully recreated.
             self.frame_pool_size = new_size;
 
-            log::info!("frame pool resized to {new_size:?}");
+            // Done. Log the new size for debugging purposes.
+            log::info!("frame pool and staging buffer resized to {new_size:?}");
         }.context("failed to resize frame pool")
+    }
+
+    fn create_texture(device: &ID3D11Device, format: DXGI_FORMAT, size: Size2D<u32>)
+     -> anyhow::Result<ID3D11Texture2D> {
+        let desc = D3D11_TEXTURE2D_DESC {
+            Width: size.width,
+            Height: size.height,
+            MipLevels: 1,
+            ArraySize: 1,
+            Format: format,
+            SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+            Usage: D3D11_USAGE_DEFAULT,
+            BindFlags: D3D11_BIND_SHADER_RESOURCE.0 as _,
+            CPUAccessFlags: 0,
+            MiscFlags: 0,
+        };
+
+        match nkcore::out_var_or_err(|out| api_call!(unsafe {
+            device.CreateTexture2D(
+                &raw const desc,
+                None,
+                Some(out))
+        })) {
+            Ok(Some(texture)) => Ok(texture),
+            Ok(None) => Err(anyhow::anyhow!("CreateTexture2D returned None without an error code")),
+            Err(err) => Err(err),
+        }.context("failed to create texture")
     }
 
     fn get_winrt_device(device: &ID3D11Device)
