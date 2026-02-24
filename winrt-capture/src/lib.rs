@@ -16,6 +16,7 @@ use windows::{
     Win32::Foundation::*,
     Win32::Graphics::Dxgi::Common::*,
     Win32::Graphics::Dxgi::*,
+    Win32::Graphics::Direct3D::*,
     Win32::Graphics::Direct3D11::*,
     Win32::System::WinRT::Direct3D11::*,
 };
@@ -33,18 +34,28 @@ pub struct CaptureSession {
     frame_pool_size: Size2D<u32>,
     session: GraphicsCaptureSession,
 
-    /// A staging texture used to copy the captured frame so that it can be used
-    /// as a shader resource.
+    /// A staging texture for copying the captured frame so that it can be
+    /// properly sampled in the shader.
     ///
-    /// The captured frame cannot be used directly because it is gamma encoded
-    /// but cannot be viewed as sRGB due to some limitations of the Windows
-    /// graphics capture API.
+    /// This is due to the limitation of the Windows graphics capture API
+    /// that the frame pool can only be created as `B8G8R8A8_UNORM` while
+    /// the captured frame contains gamma encoded data. This means that
+    /// the captured frame should be viewed as `B8G8R8A8_UNORM_SRGB` to be
+    /// properly gamma decoded, but such view cannot be created as that
+    /// requires the frame texture to be created as `B8G8R8A8_UNORM_SRGB`
+    /// or `B8G8R8A8_TYPELESS`.
     ///
-    /// The staging texture is created with the same size as the frame pool and
-    /// is recreated when the frame pool is resized.
+    /// To work around this issue, we create a staging texture of format
+    /// `B8G8R8A8_UNORM_SRGB` and copy the captured frame to the staging
+    /// texture. Then the staging texture can be used as a shader resource
+    /// without additional conversions.
     ///
-    /// [`CaptureSession::get_next_frame`] copies the captured frame to the staging
-    /// texture and returns the staging texture instead of the captured frame.
+    /// The staging texture is created with the same size as the frame pool
+    /// and is recreated when the frame pool is resized.
+    ///
+    /// [`CaptureSession::get_next_frame`] copies the captured frame to the
+    /// staging texture and returns the staging texture instead of the
+    /// captured frame.
     staging_texture: ID3D11Texture2D,
 }
 
@@ -74,7 +85,7 @@ impl CaptureSession {
                     SizeInt32 { Width: 1, Height: 1 })
             }.context("failed to create frame pool")?;
         let staging_texture =
-            Self::create_texture(
+            Self::create_texture_2d(
                 device,
                 DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
                 Size2D::new(1, 1))?;
@@ -103,7 +114,42 @@ impl CaptureSession {
                 .context("failed to create a GraphicsCaptureItem from the given HWND")?;
         Self::new(device, &capture_item)
     }
+}
 
+/// A captured frame backed by a Direct3D 11 texture.
+pub struct CaptureFrame {
+    /// The original texture of the captured frame obtained from the `WinRT`
+    /// [`Direct3D11CaptureFrame`] object.
+    ///
+    /// The format of this texture is [`DXGI_FORMAT_B8G8R8A8_UNORM`] and the
+    /// data is gamma encoded. This texture should not be used as a shader
+    /// resource directly without manually applying gamma decoding in the shader.
+    /// However, there are certain cases that a [`DXGI_FORMAT_B8G8R8A8_UNORM`]
+    /// texture is still needed, such as when the captured frame needs to be
+    /// encoded into a video stream using Windows Media Foundation (WMF).
+    pub raw_texture: ID3D11Texture2D,
+
+    /// The staging texture that contains the captured frame data.
+    ///
+    /// The format of this texture is [`DXGI_FORMAT_B8G8R8A8_UNORM_SRGB`] and the
+    /// data is gamma encoded. The `texture_view` field provides a shader resource
+    /// view of this texture that is sRGB-aware and can be sampled in the shader
+    /// without additional conversions.
+    pub texture: ID3D11Texture2D,
+
+    /// The shader resource view of the staging texture that contains the captured
+    /// frame data.
+    ///
+    /// The format of this texture view is [`DXGI_FORMAT_B8G8R8A8_UNORM_SRGB`] and
+    /// it can be sampled in the shader without additional conversions.
+    pub texture_view: ID3D11ShaderResourceView,
+
+    /// The size of the captured frame, as well as the size of the staging texture,
+    /// in pixels.
+    pub size: Size2D<u32>,
+}
+
+impl CaptureSession {
     /// Acquires the next captured frame as a [`ID3D11Texture2D`]. Returns `None`
     /// if there is no new frame available since the last call.
     ///
@@ -112,7 +158,7 @@ impl CaptureSession {
     /// Windows graphics capture API that prevents the captured frame from being
     /// used as a shader resource directly.
     pub fn get_next_frame(&mut self, ctx: &ID3D11DeviceContext)
-     -> anyhow::Result<Option<&ID3D11Texture2D>> {
+     -> anyhow::Result<Option<CaptureFrame>> {
         // Here we obtain all the frames in the pool while keeping only the
         // last one. Previous frames are discarded as they are outdated and
         // will never be rendered.
@@ -134,11 +180,20 @@ impl CaptureSession {
                 // the staging texture and return it.
                 let new_texture = Self::get_texture_from_capture_frame(&new_frame)?;
                 unsafe {
-                    ctx.CopyResource(
-                        &self.staging_texture,
-                        &new_texture);
+                    ctx.CopyResource(&self.staging_texture, &new_texture);
                 }
-                Ok(Some(&self.staging_texture))
+
+                Ok(Some(CaptureFrame {
+                    raw_texture: new_texture,
+                    texture:
+                        self.staging_texture.clone(),
+                    texture_view:
+                        Self::create_srv_for_texture_2d(
+                            &self.d3d11_device,
+                            &self.staging_texture,
+                            DXGI_FORMAT_B8G8R8A8_UNORM_SRGB)?,
+                    size: new_size,
+                }))
             } else {
                 // The frame size has changed and the frame pool must be recreated.
                 self.resize_frame_pool_and_staging_buffer(new_size)?;
@@ -177,7 +232,7 @@ impl CaptureSession {
             // recreate the frame pool again. This is not ideal but it makes
             // the error handling simpler and more robust.
             self.staging_texture =
-                Self::create_texture(
+                Self::create_texture_2d(
                     &self.d3d11_device,
                     DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
                     new_size)?;
@@ -190,8 +245,10 @@ impl CaptureSession {
             log::info!("frame pool and staging buffer resized to {new_size:?}");
         }.context("failed to resize frame pool")
     }
+}
 
-    fn create_texture(device: &ID3D11Device, format: DXGI_FORMAT, size: Size2D<u32>)
+impl CaptureSession {
+    fn create_texture_2d(device: &ID3D11Device, format: DXGI_FORMAT, size: Size2D<u32>)
      -> anyhow::Result<ID3D11Texture2D> {
         let desc = D3D11_TEXTURE2D_DESC {
             Width: size.width,
@@ -216,6 +273,34 @@ impl CaptureSession {
             Ok(None) => Err(anyhow::anyhow!("CreateTexture2D returned None without an error code")),
             Err(err) => Err(err),
         }.context("failed to create texture")
+    }
+
+    fn create_srv_for_texture_2d(
+        device: &ID3D11Device,
+        texture: &ID3D11Texture2D,
+        format: DXGI_FORMAT)
+     -> anyhow::Result<ID3D11ShaderResourceView> {
+        let desc = D3D11_SHADER_RESOURCE_VIEW_DESC {
+            Format: format,
+            ViewDimension: D3D_SRV_DIMENSION_TEXTURE2D,
+            Anonymous: D3D11_SHADER_RESOURCE_VIEW_DESC_0 {
+                Texture2D: D3D11_TEX2D_SRV {
+                    MostDetailedMip: 0,
+                    MipLevels: 1,
+                },
+            },
+        };
+
+        match nkcore::out_var_or_err(|out| api_call!(unsafe {
+            device.CreateShaderResourceView(
+                texture,
+                Some(&raw const desc),
+                Some(out))
+        })) {
+            Ok(Some(srv)) => Ok(srv),
+            Ok(None) => Err(anyhow::anyhow!("CreateShaderResourceView returned None without an error code")),
+            Err(err) => Err(err),
+        }.context("failed to create shader resource view for the given texture")
     }
 
     fn get_winrt_device(device: &ID3D11Device)
