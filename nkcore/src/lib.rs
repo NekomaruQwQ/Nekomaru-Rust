@@ -5,10 +5,12 @@ pub mod prelude {
         pub use nkcore_windows::prelude::*;
 }
 
-pub use nkcore_base::*;
+pub mod os {
+    #[cfg(windows)]
+        pub use nkcore_windows as windows;
+}
 
-#[cfg(windows)]
-    pub use nkcore_windows::*;
+pub use nkcore_base::*;
 
 #[cfg(feature = "debug")]
     pub mod debug {
