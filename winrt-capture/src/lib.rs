@@ -179,6 +179,7 @@ impl CaptureSession {
                 // The frame size has not changed. We can just copy the new frame to
                 // the staging texture and return it.
                 let new_texture = Self::get_texture_from_capture_frame(&new_frame)?;
+                // SAFETY: GPU.
                 unsafe {
                     ctx.CopyResource(&self.staging_texture, &new_texture);
                 }

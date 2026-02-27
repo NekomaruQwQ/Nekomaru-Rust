@@ -7,7 +7,7 @@ members = [
     "nkcore-debug",
     "nkcore-debug-macros",
     "nkcore-windows",
-    # component crates
+    # library crates
     "winrt-capture",
 ]
 
@@ -32,7 +32,7 @@ restriction = { level = "warn", priority = -1 }
 
 # #I-language cargo
 cargo_common_metadata = "allow"
-multiple_crate_versions = "allow" # can be fixed using `allowed-duplicate-crates`'
+multiple_crate_versions = "allow" # can be fixed using `allowed-duplicate-crates`
 
 # I-language #pedantic
 doc_markdown = "allow" # allow non-words in docs without requiring backticks
@@ -40,20 +40,23 @@ doc_markdown = "allow" # allow non-words in docs without requiring backticks
 # I-language #restriction
 arbitrary_source_item_ordering = "allow"
 as_conversions = "allow"
+big_endian_bytes = "allow" # allows using `to_be_bytes` and `from_be_bytes`
 blanket_clippy_restriction_lints = "allow"
-exhaustive_structs = "allow"
+default_numeric_fallback = "allow"
 exhaustive_enums = "allow"
+exhaustive_structs = "allow"
 expect_used = "allow"
 implicit_return = "allow"
 indexing_slicing = "allow"
 let_underscore_must_use = "allow" # allows ignoring results of functions marked `#[must_use]`
 let_underscore_untyped = "allow"
+little_endian_bytes = "allow" # allows using `to_le_bytes` and `from_le_bytes`
 missing_docs_in_private_items = "allow"
 missing_inline_in_public_items = "allow"
 missing_trait_methods = "allow"
 panic = "allow"
-print_stdout = "allow"
 print_stderr = "allow"
+print_stdout = "allow"
 pub_use = "allow"
 question_mark_used = "allow"
 ref_patterns = "allow"
@@ -65,8 +68,9 @@ single_call_fn = "allow"
 single_char_lifetime_names = "allow"
 std_instead_of_alloc = "allow"
 std_instead_of_core = "allow"
-wildcard_enum_match_arm = "allow"
 unwrap_used = "allow"
+while_float = "allow"
+wildcard_enum_match_arm = "allow"
 
 # II-language-arithmetic-and-casting #pedantic
 cast_lossless = "allow"
@@ -100,6 +104,7 @@ manual_range_contains = "allow" # makes graphics code less noisy
 match_ref_pats = "allow" # just looks cool XD
 
 # IV-code-style #nursery
+option_if_let_else = "allow" # makes code more readable in many cases
 suboptimal_flops = "allow" # makes graphics code less noisy
 
 # IV-code-style #pedantic
@@ -113,8 +118,8 @@ wildcard_imports = "allow"
 # IV-code-style #restriction
 as_underscore = "allow"
 absolute_paths = "allow"
+impl_trait_in_params = "allow"
 min_ident_chars = "allow"
 mod_module_files = "allow"
 multiple_inherent_impl = "allow"
 try_err ="allow"
-undocumented_unsafe_blocks = "allow"

@@ -1,4 +1,13 @@
 pub mod prelude {
+    pub use std::{
+        borrow::{
+            Cow::Borrowed,
+            Cow::Owned,
+        },
+        rc::Rc,
+        sync::Arc,
+    };
+
     pub use ::anyhow;
     pub use ::anyhow::Context as _;
     pub use ::euclid::default as euclid;
