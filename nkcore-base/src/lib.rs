@@ -1,9 +1,6 @@
 pub mod prelude {
     pub use std::{
-        borrow::{
-            Cow::Borrowed,
-            Cow::Owned,
-        },
+        borrow::Cow::{Borrowed, Owned},
         rc::Rc,
         sync::Arc,
     };
@@ -12,6 +9,7 @@ pub mod prelude {
     pub use ::anyhow::Context as _;
     pub use ::euclid::default as euclid;
     pub use ::log;
+    pub use ::tap::prelude::*;
 
     pub use crate::default;
 }
@@ -21,14 +19,20 @@ pub use crate::env::executable_dir;
 
 pub fn default<T: Default>() -> T { T::default() }
 
-pub fn out_var<T: Default, F: FnOnce(&mut T)>(f: F) -> T {
-    let mut out: T = Default::default();
+pub fn out_var<T, F>(f: F) -> T
+where
+    T: Default,
+    F: FnOnce(&mut T), {
+    let mut out = T::default();
     f(&mut out);
     out
 }
 
-pub fn out_var_or_err<T: Default, E, F: FnOnce(&mut T) -> Result<(), E>>(f: F) -> Result<T, E> {
-    let mut out: T = Default::default();
+pub fn out_var_or_err<T, E, F>(f: F) -> Result<T, E>
+where
+    T: Default,
+    F: FnOnce(&mut T) -> Result<(), E>, {
+    let mut out = T::default();
     f(&mut out)?;
     Ok(out)
 }
@@ -61,17 +65,30 @@ mod env {
 
 /// Helper macro for caching calculation results in thread-local storage.
 ///
-/// This macro accepts an `FnOnce() -> T` closure, caches it using a thread-local
-/// [`OnceCell`] and returns a `'static` reference to the cached value.
-/// Each unique macro invocation has its own cache entry.
+/// This macro accepts an `FnOnce() -> T` closure where T is [`Copy`].
+/// It caches the result of the closure on the first invocation, and
+/// on subsequent invocations, it returns the cached value instead of
+/// re-evaluating the closure.
+///
+/// The cached value is stored in a thread-local [`OnceCell`]. Each unique
+/// invocation of the macro has its own cache entry, so different calls to
+/// the macro with different closures will not interfere with each other's
+/// cached values.
 ///
 /// [`OnceCell`]: std::cell::OnceCell
-#[macro_export] macro_rules! cache {
-    (|| -> $ty:ty $init:block) => {{
-        ::std::thread_local!(
-            static CACHE:
-                ::std::cell::OnceCell<&'static $ty> =
-                ::std::cell::OnceCell::new());
-        CACHE.with(|once| *once.get_or_init(|| Box::leak(Box::new($init))))
+#[macro_export] macro_rules! once {
+    (|| -> $ty:ty { $($body:tt)* }) => {{
+        fn assert_static<T: 'static>() {}
+        fn assert_copy<T: Copy>() {}
+        assert_static::<$ty>();
+        assert_copy::<$ty>();
+
+        ::std::thread_local! {
+            static CELL:
+                ::std::cell::OnceCell<$ty> =
+                ::std::cell::OnceCell::new();
+        }
+
+        CELL.with(|cell| *cell.get_or_init(|| -> $ty { $($body)* }))
     }};
 }

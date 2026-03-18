@@ -550,6 +550,7 @@ dependencies = [
  "anyhow",
  "euclid",
  "log",
+ "tap",
 ]
 
 [[package]]
