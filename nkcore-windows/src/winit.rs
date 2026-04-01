@@ -6,6 +6,7 @@ use winit::{
     event::*,
     event_loop::ActiveEventLoop,
     event_loop::EventLoop,
+    platform::run_on_demand::EventLoopExtRunOnDemand as _,
     window::WindowId,
 };
 
@@ -18,18 +19,18 @@ pub enum AppEvent<T> {
 }
 
 pub trait EventLoopExt<T: 'static> {
-    fn run_app_with<C, H>(self, ctor: C) -> Result<(), EventLoopError>
+    fn run_app_with<C, H>(&mut self, ctor: C) -> Result<(), EventLoopError>
     where
         C: FnOnce(&ActiveEventLoop) -> H,
         H: FnMut(&ActiveEventLoop, AppEvent<T>);
 }
 
 impl<T: 'static> EventLoopExt<T> for EventLoop<T> {
-    fn run_app_with<C, H>(self, ctor: C) -> Result<(), EventLoopError>
+    fn run_app_with<C, H>(&mut self, ctor: C) -> Result<(), EventLoopError>
     where
         C: FnOnce(&ActiveEventLoop) -> H,
         H: FnMut(&ActiveEventLoop, AppEvent<T>) {
-        self.run_app(&mut App {
+        self.run_app_on_demand(&mut App {
             constructor: Some(ctor),
             handler: None,
             phantom: PhantomData,
