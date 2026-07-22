@@ -1,3 +1,5 @@
+//! Closure-oriented adaptation of the `winit` application event model.
+
 use std::marker::PhantomData;
 
 use winit::{
@@ -10,15 +12,30 @@ use winit::{
     window::WindowId,
 };
 
+/// An event forwarded to a handler running through [`EventLoopExt`].
 pub enum AppEvent<T> {
+    /// A window-specific event and the window that produced it.
     WindowEvent(WindowId, WindowEvent),
+    /// A raw input-device event and the device that produced it.
     DeviceEvent(DeviceId, DeviceEvent),
+    /// A user-defined event sent through the event-loop proxy.
     UserEvent(T),
+    /// The event loop is about to block while waiting for more events.
     Idle,
+    /// The event loop is shutting down.
     Exit,
 }
 
+/// Runs a `winit` event loop using a stateful closure instead of an application type.
 pub trait EventLoopExt<T: 'static> {
+    /// Constructs a handler after the event loop resumes, then forwards each event to it.
+    ///
+    /// `ctor` runs once and can use the active event loop to initialize window-bound state.
+    /// The returned handler remains alive until the event loop exits.
+    ///
+    /// Errors reported by `winit` while running the loop are returned unchanged. Panics from
+    /// either closure are propagated; suspension also panics because this Windows adapter does
+    /// not support suspend/resume cycles.
     fn run_app_with<C, H>(&mut self, ctor: C) -> Result<(), EventLoopError>
     where
         C: FnOnce(&ActiveEventLoop) -> H,

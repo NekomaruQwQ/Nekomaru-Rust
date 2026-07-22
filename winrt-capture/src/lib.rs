@@ -1,5 +1,6 @@
-
 #![feature(try_blocks)]
+
+//! Windows Graphics Capture sessions backed by Direct3D 11 textures.
 
 use nkcore::prelude::*;
 use nkcore::debug::*;
@@ -72,6 +73,11 @@ impl Drop for CaptureSession {
 impl CaptureSession {
     /// Creates a new capture session for the given [`GraphicsCaptureItem`] and
     /// starts the capture immediately.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Direct3D/WinRT interop setup, texture allocation,
+    /// capture-session creation, or capture startup fails.
     pub fn new(device: &ID3D11Device, capture_item: &GraphicsCaptureItem)
      -> anyhow::Result<Self> {
         let winrt_device =
@@ -106,6 +112,11 @@ impl CaptureSession {
 
     /// Creates a new capture session for the given window and starts the capture
     /// immediately.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Windows cannot create a capture item for `hwnd` or if
+    /// initializing and starting the capture session fails.
     pub fn from_hwnd(device: &ID3D11Device, hwnd: HWND)
      -> anyhow::Result<Self> {
         let window_id = WindowId { Value: hwnd.0 as _ };
@@ -157,6 +168,14 @@ impl CaptureSession {
     /// data. The staging texture is used to work around the limitations of the
     /// Windows graphics capture API that prevents the captured frame from being
     /// used as a shader resource directly.
+    ///
+    /// A size change recreates the frame pool and returns `None`; a subsequent call
+    /// can then acquire a frame at the new size.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if frame metadata cannot be queried, a resized frame pool or
+    /// staging texture cannot be created, or a shader-resource view cannot be created.
     pub fn get_next_frame(&mut self, ctx: &ID3D11DeviceContext)
      -> anyhow::Result<Option<CaptureFrame>> {
         // Here we obtain all the frames in the pool while keeping only the

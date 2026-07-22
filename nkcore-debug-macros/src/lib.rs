@@ -1,5 +1,7 @@
 #![expect(clippy::needless_continue, reason = "generated code from darling::FromAttributes")]
 
+//! Procedural macro implementation details for `nkcore-debug`.
+
 use proc_macro2::*;
 use quote::quote;
 use syn::*;
@@ -31,6 +33,12 @@ struct ApiNameOfArgs {
 }
 
 #[proc_macro]
+/// Extracts a readable API name from a function or method call expression.
+///
+/// This implementation macro expects an `api_name_args` attribute followed by
+/// a call expression. It supports type, lifetime, and explicitly supplied type
+/// generic arguments; unsupported expressions and const generic arguments
+/// produce a compile-time error.
 pub fn api_name_of_internal(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ApiNameOf { args, expr } =
         syn::parse::<ApiNameOf>(input)
