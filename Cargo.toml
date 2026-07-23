@@ -2,11 +2,10 @@
 resolver = "3"
 members = [
     # nkcore crates
-    "nkcore",
     "nkcore-base",
+    "nkcore-windows",
     "nkcore-debug",
     "nkcore-debug-macros",
-    "nkcore-windows",
     # library crates
     "winrt-capture",
 ]
@@ -16,7 +15,6 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
-nkcore = { path = "nkcore" }
 nkcore-base = { path = "nkcore-base" }
 nkcore-debug = { path = "nkcore-debug" }
 nkcore-debug-macros = { path = "nkcore-debug-macros" }

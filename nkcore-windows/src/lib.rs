@@ -1,23 +1,30 @@
-//! Windows-specific extensions and event-loop helpers for `nkcore`.
+//! Nekomaru's Core Library for Windows.
 
-#[cfg(feature = "winit")]
-    /// Helpers for driving a `winit` event loop with a closure.
-    pub mod winit;
+pub use nkcore_base::*;
 
 /// Common Windows-specific imports for `nkcore` consumers.
 pub mod prelude {
-    /// Logger initialization compatible with environment-based filtering.
+    pub use nkcore_base::prelude::*;
+
     pub use pretty_env_logger;
 
-    /// Converts raw Win32 window handles into Windows API handles.
     pub use super::rwh_ext::RawWindowHandleExt;
 }
+
+/// Helpers for driving a `winit` event loop with a closure.
+#[cfg(feature = "winit")] pub mod winit;
+
+/// Direct3D 11 helpers.
+#[cfg(feature = "d3d11")] pub mod d3d11;
+
+/// Diagnostics for attaching call-site context to API errors.
+#[cfg(feature = "debug")] pub use nkcore_debug as debug;
 
 mod rwh_ext {
     use windows::Win32::Foundation::HWND;
     use raw_window_handle::RawWindowHandle;
 
-    /// Converts a [`RawWindowHandle`] into platform-native Windows handles.
+    /// Converts a [`RawWindowHandle`] into platform-native handles.
     pub trait RawWindowHandleExt {
         /// Returns this handle as an [`HWND`].
         ///
@@ -32,7 +39,7 @@ mod rwh_ext {
             if let &Self::Win32(handle) = self {
                 HWND(handle.hwnd.get() as _)
             } else {
-                panic!("The provided window handle is not a Win32 window handle.");
+                panic!("Not a Win32 window handle.");
             }
         }
     }

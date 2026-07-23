@@ -2,7 +2,10 @@
 
 //! Windows Graphics Capture sessions backed by Direct3D 11 textures.
 
+extern crate nkcore_windows as nkcore;
+
 use nkcore::prelude::*;
+use nkcore::d3d11::prelude::*;
 use nkcore::debug::*;
 
 use euclid::*;
@@ -14,11 +17,6 @@ use windows::{
     Graphics::DirectX::*,
     Graphics::DirectX::Direct3D11::*,
     UI::*,
-    Win32::Foundation::*,
-    Win32::Graphics::Dxgi::Common::*,
-    Win32::Graphics::Dxgi::*,
-    Win32::Graphics::Direct3D::*,
-    Win32::Graphics::Direct3D11::*,
     Win32::System::WinRT::Direct3D11::*,
 };
 

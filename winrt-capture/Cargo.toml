@@ -7,7 +7,7 @@ edition = { workspace = true }
 workspace = true
 
 [dependencies]
-nkcore = { workspace = true, features = ["debug"]}
+nkcore-windows = { workspace = true, features = ["d3d11", "debug"]}
 
 windows = { workspace = true, features = [
     "Graphics_Capture",
