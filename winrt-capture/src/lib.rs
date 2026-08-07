@@ -81,18 +81,6 @@ impl Drop for CaptureSession {
 }
 
 impl CaptureSession {
-    /// Creates a new capture session for the given [`GraphicsCaptureItem`] and
-    /// starts the capture immediately.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if Direct3D/WinRT interop setup, texture allocation,
-    /// capture-session creation, or capture startup fails.
-    pub fn new(device: &ID3D11Device, capture_item: &GraphicsCaptureItem)
-     -> anyhow::Result<Self> {
-        Self::new_inner(device, capture_item, None)
-    }
-
     /// Creates a capture session for the given [`GraphicsCaptureItem`], applies
     /// `options`, and starts the capture immediately.
     ///
@@ -100,19 +88,9 @@ impl CaptureSession {
     ///
     /// Returns an error if Direct3D/WinRT interop setup, texture allocation,
     /// option application, capture-session creation, or capture startup fails.
-    pub fn new_with_options(
+    fn new(
         device: &ID3D11Device,
-        capture_item: &GraphicsCaptureItem,
-        options: &CaptureOptions)
-     -> anyhow::Result<Self> {
-        Self::new_inner(device, capture_item, Some(options))
-    }
-
-    /// Shared implementation that preserves the operating-system defaults when
-    /// legacy constructors do not provide explicit options.
-    fn new_inner(
-        device: &ID3D11Device,
-        capture_item: &GraphicsCaptureItem,
+        target: &GraphicsCaptureItem,
         options: Option<&CaptureOptions>)
      -> anyhow::Result<Self> {
         let winrt_device =
@@ -131,7 +109,7 @@ impl CaptureSession {
                 DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
                 Size2D::new(1, 1))?;
         let session =
-            api_call!(frame_pool.CreateCaptureSession(capture_item))
+            api_call!(frame_pool.CreateCaptureSession(target))
                 .context("failed to create capture session from the given GraphicsCaptureItem")?;
         if let Some(options) = options {
             api_call!(session.SetIsCursorCaptureEnabled(options.capture_cursor))
@@ -149,22 +127,6 @@ impl CaptureSession {
         })
     }
 
-    /// Creates a new capture session for the given window and starts the capture
-    /// immediately.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if Windows cannot create a capture item for `hwnd` or if
-    /// initializing and starting the capture session fails.
-    pub fn from_hwnd(device: &ID3D11Device, hwnd: HWND)
-     -> anyhow::Result<Self> {
-        let window_id = WindowId { Value: hwnd.0 as _ };
-        let capture_item =
-            api_call!(GraphicsCaptureItem::TryCreateFromWindowId(window_id))
-                .context("failed to create a GraphicsCaptureItem from the given HWND")?;
-        Self::new(device, &capture_item)
-    }
-
     /// Creates a capture session for the given window, applies `options`, and
     /// starts the capture immediately.
     ///
@@ -172,7 +134,7 @@ impl CaptureSession {
     ///
     /// Returns an error if Windows cannot create a capture item for `hwnd`, an
     /// option cannot be applied, or initializing and starting capture fails.
-    pub fn from_hwnd_with_options(
+    pub fn from_hwnd(
         device: &ID3D11Device,
         hwnd: HWND,
         options: &CaptureOptions)
@@ -181,7 +143,7 @@ impl CaptureSession {
         let capture_item =
             api_call!(GraphicsCaptureItem::TryCreateFromWindowId(window_id))
                 .context("failed to create a GraphicsCaptureItem from the given HWND")?;
-        Self::new_with_options(device, &capture_item, options)
+        Self::new(device, &capture_item, Some(options))
     }
 }
 
