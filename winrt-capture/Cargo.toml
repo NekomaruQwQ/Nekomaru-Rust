@@ -2,12 +2,15 @@
 name = "winrt-capture"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
 
 [lints]
 workspace = true
 
 [dependencies]
-nkcore-windows = { workspace = true, features = ["d3d11", "debug"]}
+nkcore = { workspace = true, features = ["debug"] }
+nkcore-windows = { workspace = true, features = ["d3d11"]}
 
 windows = { workspace = true, features = [
     "Graphics_Capture",

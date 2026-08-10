@@ -2,12 +2,12 @@
 
 //! Windows Graphics Capture sessions backed by Direct3D 11 textures.
 
-extern crate nkcore_windows as nkcore;
-
 use nkcore::prelude::*;
-use nkcore::d3d11::prelude::*;
 use nkcore::debug::*;
+use nkcore_windows::d3d11::prelude::*;
 
+#[expect(clippy::unused_trait_names, reason = "resolve ambiguity")]
+use anyhow::Context;
 use euclid::*;
 
 use windows::core::Interface as _;

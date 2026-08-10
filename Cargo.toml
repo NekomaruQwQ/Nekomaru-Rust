@@ -2,10 +2,11 @@
 resolver = "3"
 members = [
     # nkcore crates
-    "nkcore-base",
-    "nkcore-windows",
+    "nkcore",
+    "nkcore-macros",
     "nkcore-debug",
     "nkcore-debug-macros",
+    "nkcore-windows",
     # library crates
     "winrt-capture",
 ]
@@ -13,9 +14,12 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "GPL-3.0-or-later"
+publish = false
 
 [workspace.dependencies]
-nkcore-base = { path = "nkcore-base" }
+nkcore = { path = "nkcore" }
+nkcore-macros = { path = "nkcore-macros" }
 nkcore-debug = { path = "nkcore-debug" }
 nkcore-debug-macros = { path = "nkcore-debug-macros" }
 nkcore-windows = { path = "nkcore-windows" }
@@ -60,6 +64,7 @@ print_stdout = "allow"
 pub_use = "allow"
 question_mark_used = "allow"
 ref_patterns = "allow"
+rest_pattern_accessible_field = "allow"
 self_named_module_files = "allow"
 shadow_reuse = "allow"
 shadow_same = "allow"

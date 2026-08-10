@@ -1,4 +1,4 @@
-#![expect(clippy::needless_continue, reason = "generated code from darling::FromAttributes")]
+#![expect(clippy::unreachable, reason = "generated code from darling::FromAttributes")]
 
 //! Procedural macro implementation details for `nkcore-debug`.
 

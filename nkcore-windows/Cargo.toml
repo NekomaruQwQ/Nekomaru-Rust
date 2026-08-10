@@ -2,6 +2,8 @@
 name = "nkcore-windows"
 version = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
+publish = { workspace = true }
 
 [lints]
 workspace = true
@@ -9,7 +11,6 @@ workspace = true
 [features]
 default = []
 winit = ["dep:winit"]
-debug = ["dep:nkcore-debug"]
 d3d11 = [
     "windows/Win32_Graphics_Dxgi_Common",
     "windows/Win32_Graphics_Dxgi",
@@ -17,16 +18,18 @@ d3d11 = [
     "windows/Win32_Graphics_Direct3D11",
 ]
 
+process-tree = ["dep:win32job"]
+
 [dependencies]
-nkcore-base = { workspace = true }
-nkcore-debug = { workspace = true, optional = true }
+nkcore = { workspace = true, features = ["debug"] }
 
 pretty_env_logger = "0.5.0"
 raw-window-handle = "0.6.2"
+win32job = { version = "2.0.3", optional = true }
 windows = { workspace = true }
 
 [dependencies.winit]
-version = "0.30.12"
+version = "0.30.13"
 default-features = false
 features = ["rwh_06"]
 optional = true

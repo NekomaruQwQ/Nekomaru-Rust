@@ -1,27 +1,16 @@
 //! Diagnostic macros that attach source locations and API names to errors.
 
-use nkcore_debug_macros as macros;
+#[doc(hidden)] pub use nkcore_debug_macros::api_name_of_internal as __api_name_of_internal;
+#[doc(hidden)] pub use anyhow as __anyhow;
+#[doc(hidden)] pub use pretty_name::type_name as __type_name;
+#[doc(hidden)] pub use pretty_name::type_name_of_val as __type_name_of_val;
 
-/// Implementation details referenced by the crate's exported macros.
-///
-/// This module is public because exported macros must resolve these names from
-/// downstream crates; it is not intended as a direct consumer API.
-#[doc(hidden)]
-pub mod __ {
-    /// Internal procedural macro used to parse API call expressions.
-    pub use crate::macros::api_name_of_internal;
-    /// Call-site context produced by [`crate::context!`].
-    pub use crate::Context;
-    /// Error type and context extension trait used by [`crate::api_call!`].
-    pub use anyhow;
-    /// Returns a readable name for a type.
-    pub use pretty_name::type_name;
-    /// Returns a readable name for a value's type.
-    pub use pretty_name::type_name_of_val;
-}
+use std::fmt;
 
 /// Source location and message attached to a failed API call.
-pub struct Context {
+#[expect(non_camel_case_types, reason = "internal type used by macros")]
+#[doc(hidden)]
+pub struct __api_call_context_t {
     /// Source file containing the instrumented call.
     pub file: &'static str,
     /// One-based source line containing the instrumented call.
@@ -30,22 +19,20 @@ pub struct Context {
     pub message: String,
 }
 
-use std::fmt;
-
-impl fmt::Display for Context {
+impl fmt::Display for __api_call_context_t {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let &Self { file, line, ref message } = self;
         write!(f, "{message}\n    at {file}:{line}")
     }
 }
 
-/// Constructs a [`Context`] at the macro invocation's source location.
+/// Constructs a [`__api_call_context_t`] at the macro invocation's source location.
 ///
 /// The arguments use the same format-string syntax as [`format!`]. Formatting
 /// failures and panics from argument evaluation propagate to the caller.
-#[macro_export] macro_rules! context {
+#[doc(hidden)] #[macro_export] macro_rules! __api_call_context {
     ($message:expr $(, $message_arg:expr)*) => {
-        $crate::__::Context {
+        $crate::__api_call_context_t {
             file: file!(),
             line: line!(),
             message: format!($message $(, $message_arg)*),
@@ -53,7 +40,6 @@ impl fmt::Display for Context {
     };
 }
 
-#[cfg(debug_assertions)]
 /// Evaluates a fallible API call and attaches call-site diagnostics on failure.
 ///
 /// In debug builds, the context includes the parsed API name and source location.
@@ -61,52 +47,29 @@ impl fmt::Display for Context {
 /// the call site. The expression is evaluated exactly once, and any panic propagates.
 #[macro_export] macro_rules! api_call {
     (unsafe { $expr:expr }) => { unsafe {
-        $crate::__::anyhow::Context::with_context(
-            $expr, || $crate::context!("{} failed", $crate::api_name_of!($expr)))
+        $crate::__anyhow::Context::with_context(
+            $expr, || $crate::__api_call_context!("{} failed", $crate::api_name_of!($expr)))
     }};
     ($expr:expr) => {{
-        $crate::__::anyhow::Context::with_context(
-            $expr, || $crate::context!("{} failed", $crate::api_name_of!($expr)))
+        $crate::__anyhow::Context::with_context(
+            $expr, || $crate::__api_call_context!("{} failed", $crate::api_name_of!($expr)))
     }};
 }
 
-#[cfg(not(debug_assertions))]
-/// Evaluates a fallible API call and attaches lightweight context on failure.
-///
-/// Release builds use a fixed message to avoid API-name and source-location
-/// formatting overhead. The expression is evaluated exactly once, and any panic
-/// propagates. The `unsafe { expression }` form keeps unsafe calls visibly scoped.
-#[macro_export] macro_rules! api_call {
-    (unsafe { $expr:expr }) => { unsafe {
-        $crate::__::anyhow::Context::context($expr, "api call failed")
-    }};
-    ($expr:expr) => {{
-        $crate::__::anyhow::Context::context($expr, "api call failed")
-    }};
-}
-
-#[cfg(debug_assertions)]
 /// Returns a readable name for a function or method call expression.
 ///
 /// Debug builds preserve explicitly supplied type and lifetime generic arguments.
 /// Unsupported expressions and const generic arguments produce a compile-time error.
 #[macro_export] macro_rules! api_name_of(($expr:expr) => {
-    $crate::__::api_name_of_internal! {
+    $crate::__api_name_of_internal! {
         #[api_name_args(
-            type_name = $crate::__::type_name,
-            type_name_of = $crate::__::type_name_of_val)]
+            type_name = $crate::__type_name,
+            type_name_of = $crate::__type_name_of_val)]
         $expr
     }
 });
 
-#[cfg(not(debug_assertions))]
-/// Returns a placeholder API name without runtime parsing overhead.
-///
-/// Release builds always expand to `"<unknown>"` and do not evaluate the expression.
-#[macro_export] macro_rules! api_name_of(($expr:expr) => { "<unknown>"});
-
 #[cfg(test)]
-#[cfg(debug_assertions)]
 #[expect(dead_code, reason = "test code")]
 #[expect(clippy::unused_self, reason = "test code")]
 mod test {
