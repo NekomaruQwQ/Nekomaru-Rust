@@ -13,3 +13,6 @@ nkcore-debug-macros = { workspace = true }
 
 anyhow = "1.0"
 pretty-name = "0.4.5"
+
+[dev-dependencies]
+trybuild = "1.0"

@@ -3,9 +3,22 @@
 #[doc(hidden)] pub use nkcore_debug_macros::api_name_of_internal as __api_name_of_internal;
 #[doc(hidden)] pub use anyhow as __anyhow;
 #[doc(hidden)] pub use pretty_name::type_name as __type_name;
-#[doc(hidden)] pub use pretty_name::type_name_of_val as __type_name_of_val;
 
 use std::fmt;
+
+/// Returns the name of the type inferred by `type_check` without invoking it.
+///
+/// The closure exists only to let generated code constrain `T` from an
+/// expression while leaving that expression unevaluated.
+#[doc(hidden)]
+pub fn __api_receiver_type_name<T: ?Sized>(
+    _type_check: impl FnOnce(&T)) -> &'static str {
+    __type_name::<T>()
+}
+
+/// Constrains two references to have the same referent type.
+#[doc(hidden)]
+pub const fn __api_same_type<T: ?Sized>(_: &T, _: &T) {}
 
 /// Source location and message attached to a failed API call.
 #[expect(non_camel_case_types, reason = "internal type used by macros")]
@@ -64,7 +77,8 @@ impl fmt::Display for __api_call_context_t {
     $crate::__api_name_of_internal! {
         #[api_name_args(
             type_name = $crate::__type_name,
-            type_name_of = $crate::__type_name_of_val)]
+            receiver_type_name = $crate::__api_receiver_type_name,
+            same_type = $crate::__api_same_type)]
         $expr
     }
 });
@@ -86,6 +100,28 @@ mod test {
     struct Foo;
     impl Foo {
         fn bar<P0, P1>(&self, _: P0, _: P1) {}
+    }
+
+    struct FallibleApi;
+    impl FallibleApi {
+        fn fail(&self) -> std::io::Result<()> {
+            Err(std::io::Error::other("expected failure"))
+        }
+    }
+
+    fn make_fallible_api(evaluations: &std::cell::Cell<usize>) -> FallibleApi {
+        evaluations.set(evaluations.get() + 1);
+        FallibleApi
+    }
+
+    #[test] fn api_call_evaluates_method_receiver_once_on_failure() {
+        let evaluations = std::cell::Cell::new(0);
+
+        let _error =
+            api_call!(make_fallible_api(&evaluations).fail())
+                .unwrap_err();
+
+        assert_eq!(evaluations.get(), 1);
     }
 
     #[test] fn api_name_of() {
