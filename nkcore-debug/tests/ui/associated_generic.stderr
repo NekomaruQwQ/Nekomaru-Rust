@@ -1,0 +1,5 @@
+error: associated generic arguments are not supported
+ --> tests/ui/associated_generic.rs:6:40
+  |
+6 |     let _name = api_name_of!(generic::<Item = u32>());
+  |                                        ^^^^^^^^^^
