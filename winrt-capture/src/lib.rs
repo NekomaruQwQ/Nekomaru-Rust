@@ -1,13 +1,10 @@
-#![feature(try_blocks)]
+#![expect(clippy::undocumented_unsafe_blocks, reason = "future work")]
 
 //! Windows Graphics Capture sessions backed by Direct3D 11 textures.
 
 use nkcore::prelude::*;
-use nkcore::debug::*;
 use nkcore_windows::d3d11::prelude::*;
 
-#[expect(clippy::unused_trait_names, reason = "resolve ambiguity")]
-use anyhow::Context;
 use euclid::*;
 
 use windows::core::Interface as _;
@@ -94,9 +91,9 @@ impl CaptureSession {
         options: Option<&CaptureOptions>)
      -> anyhow::Result<Self> {
         let winrt_device =
-            Self::get_winrt_device(device)?;
+            auto_context!(Self::get_winrt_device(device))?;
         let frame_pool =
-            api_call! {
+            auto_context! {
                 Direct3D11CaptureFramePool::CreateFreeThreaded(
                     &winrt_device,
                     DirectXPixelFormat::B8G8R8A8UIntNormalized,
@@ -109,13 +106,13 @@ impl CaptureSession {
                 DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
                 Size2D::new(1, 1))?;
         let session =
-            api_call!(frame_pool.CreateCaptureSession(target))
+            auto_context!(frame_pool.CreateCaptureSession(target))
                 .context("failed to create capture session from the given GraphicsCaptureItem")?;
         if let Some(options) = options {
-            api_call!(session.SetIsCursorCaptureEnabled(options.capture_cursor))
+            auto_context!(session.SetIsCursorCaptureEnabled(options.capture_cursor))
                 .context("failed to configure cursor capture")?;
         }
-        api_call!(session.StartCapture())
+        auto_context!(session.StartCapture())
             .context("failed to start the capture session")?;
         Ok(Self {
             d3d11_device: device.clone(),
@@ -141,7 +138,7 @@ impl CaptureSession {
      -> anyhow::Result<Self> {
         let window_id = WindowId { Value: hwnd.0 as _ };
         let capture_item =
-            api_call!(GraphicsCaptureItem::TryCreateFromWindowId(window_id))
+            auto_context!(GraphicsCaptureItem::TryCreateFromWindowId(window_id))
                 .context("failed to create a GraphicsCaptureItem from the given HWND")?;
         Self::new(device, &capture_item, Some(options))
     }
@@ -217,7 +214,7 @@ impl CaptureSession {
             if new_size == self.frame_pool_size {
                 // The frame size has not changed. We can just copy the new frame to
                 // the staging texture and return it.
-                let new_texture = Self::get_texture_from_capture_frame(&new_frame)?;
+                let new_texture = auto_context!(Self::get_texture_from_capture_frame(&new_frame))?;
                 // SAFETY: GPU.
                 unsafe {
                     ctx.CopyResource(&self.staging_texture, &new_texture);
@@ -251,39 +248,38 @@ impl CaptureSession {
 
     fn resize_frame_pool_and_staging_buffer(&mut self, new_size: Size2D<u32>)
      -> anyhow::Result<()> {
-        try {
-            // The frame size has changed and the frame pool must be recreated.
-            api_call! {
-                self.frame_pool.Recreate(
-                    &self.winrt_device,
-                    DirectXPixelFormat::B8G8R8A8UIntNormalized,
-                    2,
-                    SizeInt32 {
-                        Width: new_size.width as _,
-                        Height: new_size.height as _,
-                    })
-            }?;
+        // The frame size has changed and the frame pool must be recreated.
+        auto_context! {
+            self.frame_pool.Recreate(
+                &self.winrt_device,
+                DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                2,
+                SizeInt32 {
+                    Width: new_size.width as _,
+                    Height: new_size.height as _,
+                })
+        }?;
 
-            // The staging texture must be resized accordingly to match the
-            // new size of the frame pool.
-            //
-            // Note that if an error occurs here, `self.frame_pool_size` is
-            // not updated and the next call to `get_next_frame` will try to
-            // recreate the frame pool again. This is not ideal but it makes
-            // the error handling simpler and more robust.
-            self.staging_texture =
-                Self::create_texture_2d(
-                    &self.d3d11_device,
-                    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
-                    new_size)?;
+        // The staging texture must be resized accordingly to match the
+        // new size of the frame pool.
+        //
+        // Note that if an error occurs here, `self.frame_pool_size` is
+        // not updated and the next call to `get_next_frame` will try to
+        // recreate the frame pool again. This is not ideal but it makes
+        // the error handling simpler and more robust.
+        self.staging_texture =
+            Self::create_texture_2d(
+                &self.d3d11_device,
+                DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+                new_size)?;
 
-            // The `frame_pool_size` must be updated after the frame pool is
-            // successfully recreated.
-            self.frame_pool_size = new_size;
+        // The `frame_pool_size` must be updated after the frame pool is
+        // successfully recreated.
+        self.frame_pool_size = new_size;
 
-            // Done. Log the new size for debugging purposes.
-            log::info!("frame pool and staging buffer resized to {new_size:?}");
-        }.context("failed to resize frame pool")
+        // Done. Log the new size for debugging purposes.
+        log::info!("frame pool and staging buffer resized to {new_size:?}");
+        Ok(())
     }
 }
 
@@ -303,7 +299,7 @@ impl CaptureSession {
             MiscFlags: 0,
         };
 
-        match nkcore::out_var_or_err(|out| api_call!(unsafe {
+        match nkcore::out_var_or_err(|out| auto_context!(unsafe {
             device.CreateTexture2D(
                 &raw const desc,
                 None,
@@ -331,7 +327,7 @@ impl CaptureSession {
             },
         };
 
-        match nkcore::out_var_or_err(|out| api_call!(unsafe {
+        match nkcore::out_var_or_err(|out| auto_context!(unsafe {
             device.CreateShaderResourceView(
                 texture,
                 Some(&raw const desc),
@@ -345,21 +341,17 @@ impl CaptureSession {
 
     fn get_winrt_device(device: &ID3D11Device)
      -> anyhow::Result<IDirect3DDevice> {
-        try {
-            let dxgi_device =
-                api_call!(device.cast::<IDXGIDevice>())?;
-            let winrt_device =
-                api_call!(unsafe { CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device) })?;
-            api_call!(winrt_device.cast::<IDirect3DDevice>())?
-        }.context("failed to get IDirect3DDevice from ID3D11Device")
+        let dxgi_device =
+            auto_context!(device.cast::<IDXGIDevice>())?;
+        let winrt_device =
+            auto_context!(unsafe { CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device) })?;
+        auto_context!(winrt_device.cast::<IDirect3DDevice>())
     }
 
     fn get_texture_from_capture_frame(frame: &Direct3D11CaptureFrame)
      -> anyhow::Result<ID3D11Texture2D> {
-        try {
-            let surface = api_call!(unsafe { frame.Surface() })?;
-            let surface = api_call!(unsafe { surface.cast::<IDirect3DDxgiInterfaceAccess>() })?;
-            api_call!(unsafe { surface.GetInterface::<ID3D11Texture2D>() })?
-        }.context("failed to get ID3D11Texture from Direct3D11CaptureFrame")
+        let surface = auto_context!(frame.Surface())?;
+        let surface = auto_context!(surface.cast::<IDirect3DDxgiInterfaceAccess>())?;
+        auto_context!(unsafe { surface.GetInterface::<ID3D11Texture2D>() })
     }
 }

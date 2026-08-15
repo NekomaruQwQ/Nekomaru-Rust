@@ -9,7 +9,7 @@ publish = { workspace = true }
 workspace = true
 
 [dependencies]
-nkcore = { workspace = true, features = ["debug"] }
+nkcore = { workspace = true }
 nkcore-windows = { workspace = true, features = ["d3d11"]}
 
 windows = { workspace = true, features = [

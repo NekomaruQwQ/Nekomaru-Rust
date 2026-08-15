@@ -21,7 +21,7 @@ d3d11 = [
 process-tree = ["dep:win32job"]
 
 [dependencies]
-nkcore = { workspace = true, features = ["debug"] }
+nkcore = { workspace = true }
 
 pretty_env_logger = "0.5.0"
 raw-window-handle = "0.6.2"

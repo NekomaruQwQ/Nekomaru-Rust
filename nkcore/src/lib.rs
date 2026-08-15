@@ -11,14 +11,13 @@ pub mod prelude {
 
     pub use ::anyhow;
     pub use ::anyhow::Context;
+    pub use ::anyhow_auto_context::auto_context;
     pub use ::euclid::default as euclid;
     pub use ::log;
     pub use ::tap::prelude::*;
 
     pub fn default<T: Default>() -> T { T::default() }
 }
-
-#[cfg(feature = "debug")] pub use nkcore_debug as debug;
 
 /// Builds a default value by allowing `f` to initialize it through a mutable reference.
 ///

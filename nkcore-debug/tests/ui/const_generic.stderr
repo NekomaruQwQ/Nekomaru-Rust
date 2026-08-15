@@ -1,5 +1,0 @@
-error: const generic arguments are not supported
- --> tests/ui/const_generic.rs:6:46
-  |
-6 |     let _name = api_name_of!(const_generic::<1>());
-  |                                              ^

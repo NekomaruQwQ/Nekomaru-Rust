@@ -3,9 +3,6 @@ resolver = "3"
 members = [
     # nkcore crates
     "nkcore",
-    "nkcore-macros",
-    "nkcore-debug",
-    "nkcore-debug-macros",
     "nkcore-windows",
     # library crates
     "winrt-capture",
@@ -19,9 +16,6 @@ publish = false
 
 [workspace.dependencies]
 nkcore = { path = "nkcore" }
-nkcore-macros = { path = "nkcore-macros" }
-nkcore-debug = { path = "nkcore-debug" }
-nkcore-debug-macros = { path = "nkcore-debug-macros" }
 nkcore-windows = { path = "nkcore-windows" }
 
 windows = { version = "0.62.2", features = ["Win32_Foundation"] }
